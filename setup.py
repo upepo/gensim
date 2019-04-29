@@ -11,23 +11,21 @@ sudo python ./setup.py install
 """
 
 import os
+import platform
 import sys
 import warnings
-import io
-
-if sys.version_info[:2] < (2, 7) or (sys.version_info[:1] == 3 and sys.version_info[:2] < (3, 5)):
-    raise Exception('This version of gensim needs Python 2.7, 3.5 or later.')
-
-import ez_setup
-ez_setup.use_setuptools()
 from setuptools import setup, find_packages, Extension
 from setuptools.command.build_ext import build_ext
 
+if sys.version_info[:2] < (2, 7) or (sys.version_info[:1] == 3 and sys.version_info[:2] < (3, 5)):
+    raise Exception('This version of gensim needs Python 2.7, 3.5 or later.')
 
 # the following code is adapted from tornado's setup.py:
 # https://github.com/tornadoweb/tornado/blob/master/setup.py
 # to support installing without the extension on platforms where
 # no compiler is available.
+
+
 class custom_build_ext(build_ext):
     """Allow C extension building to fail.
 
@@ -89,17 +87,16 @@ http://api.mongodb.org/python/current/installation.html#osx
     # importing numpy directly in this script, before it's actually installed!
     # http://stackoverflow.com/questions/19919905/how-to-bootstrap-numpy-installation-in-setup-py
     def finalize_options(self):
-            build_ext.finalize_options(self)
-            # Prevent numpy from thinking it is still in its setup process:
-            # https://docs.python.org/2/library/__builtin__.html#module-__builtin__
-            if isinstance(__builtins__, dict):
-                __builtins__["__NUMPY_SETUP__"] = False
-            else:
-                __builtins__.__NUMPY_SETUP__ = False
+        build_ext.finalize_options(self)
+        # Prevent numpy from thinking it is still in its setup process:
+        # https://docs.python.org/2/library/__builtin__.html#module-__builtin__
+        if isinstance(__builtins__, dict):
+            __builtins__["__NUMPY_SETUP__"] = False
+        else:
+            __builtins__.__NUMPY_SETUP__ = False
 
-            import numpy
-            self.include_dirs.append(numpy.get_include())
-
+        import numpy
+        self.include_dirs.append(numpy.get_include())
 
 
 model_dir = os.path.join(os.path.dirname(__file__), 'gensim', 'models')
@@ -107,11 +104,10 @@ gensim_dir = os.path.join(os.path.dirname(__file__), 'gensim')
 
 cmdclass = {'build_ext': custom_build_ext}
 
-WHEELHOUSE_UPLOADER_COMMANDS = set(['fetch_artifacts', 'upload_all'])
+WHEELHOUSE_UPLOADER_COMMANDS = {'fetch_artifacts', 'upload_all'}
 if WHEELHOUSE_UPLOADER_COMMANDS.intersection(sys.argv):
     import wheelhouse_uploader.cmd
     cmdclass.update(vars(wheelhouse_uploader.cmd))
-
 
 
 LONG_DESCRIPTION = u"""
@@ -197,7 +193,7 @@ When `citing gensim in academic papers and theses <https://scholar.google.cz/cit
 
   @inproceedings{rehurek_lrec,
         title = {{Software Framework for Topic Modelling with Large Corpora}},
-        author = {Radim {\v R}eh{\r u}{\v r}ek and Petr Sojka},
+        author = {Radim {\\v R}eh{\\r u}{\\v r}ek and Petr Sojka},
         booktitle = {{Proceedings of the LREC 2010 Workshop on New
              Challenges for NLP Frameworks}},
         pages = {45--50},
@@ -205,7 +201,7 @@ When `citing gensim in academic papers and theses <https://scholar.google.cz/cit
         month = May,
         day = 22,
         publisher = {ELRA},
-        address = {Valletta, Malta}, 
+        address = {Valletta, Malta},
         language={English}
   }
 
@@ -225,21 +221,91 @@ Copyright (c) 2009-now Radim Rehurek
 
 """
 
+distributed_env = ['Pyro4 >= 4.27']
+
+win_testenv = [
+    'pytest',
+    'pytest-rerunfailures',
+    'mock',
+    'cython',
+    'pyemd',
+    'testfixtures',
+    'scikit-learn',
+    'Morfessor==2.0.2a4',
+    'python-Levenshtein >= 0.10.2',
+    'visdom >= 0.1.8, != 0.1.8.7',
+]
+
+linux_testenv = win_testenv[:]
+
+if sys.version_info < (3, 7):
+    linux_testenv.extend([
+        'tensorflow <= 1.3.0',
+        'keras >= 2.0.4, <= 2.1.4',
+        'annoy',
+    ])
+
+ext_modules = [
+    Extension('gensim.models.word2vec_inner',
+        sources=['./gensim/models/word2vec_inner.c'],
+        include_dirs=[model_dir]),
+    Extension('gensim.models.doc2vec_inner',
+        sources=['./gensim/models/doc2vec_inner.c'],
+        include_dirs=[model_dir]),
+    Extension('gensim.corpora._mmreader',
+        sources=['./gensim/corpora/_mmreader.c']),
+    Extension('gensim.models.fasttext_inner',
+        sources=['./gensim/models/fasttext_inner.c'],
+        include_dirs=[model_dir]),
+    Extension('gensim.models._utils_any2vec',
+        sources=['./gensim/models/_utils_any2vec.c'],
+        include_dirs=[model_dir]),
+    Extension('gensim._matutils',
+        sources=['./gensim/_matutils.c']),
+    Extension('gensim.models.nmf_pgd',
+        sources=['./gensim/models/nmf_pgd.c'])
+]
+
+if not (os.name == 'nt' and sys.version_info[0] < 3):
+    extra_args = []
+    system = platform.system()
+
+    if system == 'Linux':
+        extra_args.append('-std=c++11')
+    elif system == 'Darwin':
+        extra_args.extend(['-stdlib=libc++', '-std=c++11'])
+
+    ext_modules.append(
+        Extension('gensim.models.word2vec_corpusfile',
+                  sources=['./gensim/models/word2vec_corpusfile.cpp'],
+                  language='c++',
+                  extra_compile_args=extra_args,
+                  extra_link_args=extra_args)
+    )
+
+    ext_modules.append(
+        Extension('gensim.models.fasttext_corpusfile',
+                  sources=['./gensim/models/fasttext_corpusfile.cpp'],
+                  language='c++',
+                  extra_compile_args=extra_args,
+                  extra_link_args=extra_args)
+    )
+
+    ext_modules.append(
+        Extension('gensim.models.doc2vec_corpusfile',
+                  sources=['./gensim/models/doc2vec_corpusfile.cpp'],
+                  language='c++',
+                  extra_compile_args=extra_args,
+                  extra_link_args=extra_args)
+    )
 
 setup(
     name='gensim',
-    version='2.0.0',
+    version='3.7.2',
     description='Python framework for fast Vector Space Modelling',
     long_description=LONG_DESCRIPTION,
 
-    ext_modules=[
-        Extension('gensim.models.word2vec_inner',
-            sources=['./gensim/models/word2vec_inner.c'],
-            include_dirs=[model_dir]),
-        Extension('gensim.models.doc2vec_inner',
-            sources=['./gensim/models/doc2vec_inner.c'],
-            include_dirs=[model_dir])
-    ],
+    ext_modules=ext_modules,
     cmdclass=cmdclass,
     packages=find_packages(),
 
@@ -248,6 +314,8 @@ setup(
 
     url='http://radimrehurek.com/gensim',
     download_url='http://pypi.python.org/pypi/gensim',
+    
+    license='LGPLv2.1',
 
     keywords='Singular Value Decomposition, SVD, Latent Semantic Indexing, '
         'LSA, LSI, Latent Dirichlet Allocation, LDA, '
@@ -267,6 +335,7 @@ setup(
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
         'Topic :: Scientific/Engineering :: Artificial Intelligence',
         'Topic :: Scientific/Engineering :: Information Analysis',
         'Topic :: Text Processing :: Linguistic',
@@ -274,21 +343,20 @@ setup(
 
     test_suite="gensim.test",
     setup_requires=[
-        'numpy >= 1.3'
+        'numpy >= 1.11.3'
     ],
     install_requires=[
-        'numpy >= 1.3',
-        'scipy >= 0.7.0',
+        'numpy >= 1.11.3',
+        'scipy >= 0.18.1',
         'six >= 1.5.0',
-        'smart_open >= 1.2.1',
+        'smart_open >= 1.7.0',
     ],
+    tests_require=linux_testenv,
     extras_require={
-        'distributed': ['Pyro4 >= 4.27'],
-        'wmd': ['pyemd >= 0.2.0'],
-        'test': [
-            'testfixtures',
-            'unittest2'
-        ],
+        'distributed': distributed_env,
+        'test-win': win_testenv,
+        'test': linux_testenv,
+        'docs': linux_testenv + distributed_env + ['sphinx', 'sphinxcontrib-napoleon', 'plotly', 'pattern <= 2.6', 'sphinxcontrib.programoutput'],
     },
 
     include_package_data=True,

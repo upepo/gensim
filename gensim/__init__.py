@@ -1,18 +1,13 @@
-"""
-This package contains interfaces and functionality to compute pair-wise document
-similarities within a corpus of documents.
+"""This package contains interfaces and functionality to compute pair-wise document similarities within a corpus
+of documents.
 """
 
-from gensim import parsing, matutils, interfaces, corpora, models, similarities, summarization
+from gensim import parsing, corpora, matutils, interfaces, models, similarities, summarization, utils  # noqa:F401
 import logging
 
-__version__ = '1.0.1'
+__version__ = '3.7.2'
 
-class NullHandler(logging.Handler):
-    """For python versions <= 2.6; same as `logging.NullHandler` in 2.7."""
-    def emit(self, record):
-        pass
 
 logger = logging.getLogger('gensim')
-if len(logger.handlers) == 0:	# To ensure reload() doesn't add another one
-    logger.addHandler(NullHandler())
+if len(logger.handlers) == 0:  # To ensure reload() doesn't add another one
+    logger.addHandler(logging.NullHandler())
